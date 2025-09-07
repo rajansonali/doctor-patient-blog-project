@@ -1,0 +1,168 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>Doctor-Patient Blog System</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+        button { padding: 10px 15px; margin: 5px; background: #007bff; color: white; border: none; cursor: pointer; }
+        input, textarea, select { padding: 8px; margin: 5px; width: 200px; }
+        textarea { width: 400px; height: 100px; }
+        .result { background: #f8f9fa; padding: 10px; margin: 10px 0; border-left: 4px solid #007bff; }
+        .error { border-left-color: #dc3545; }
+        .posts { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; }
+        .post { border: 1px solid #ddd; padding: 15px; }
+        .server-status { padding: 10px; margin: 10px 0; border: 1px solid #007bff; background: #e7f3ff; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Doctor-Patient Blog System Demo</h1>
+        
+        <div class="server-status">
+            <h3>Server Status</h3>
+            <button onclick="testConnection()">Test Server Connection</button>
+            <div id="connectionResult"></div>
+        </div>
+
+        <div class="section">
+            <h2>Alternative: Direct API Testing</h2>
+            <p>If fetch fails, use these URLs directly in your browser:</p>
+            <ul>
+                <li><a href="http://localhost:3003/" target="_blank">http://localhost:3003/</a> - Server status</li>
+                <li><a href="http://localhost:3003/api/blog/categories" target="_blank">http://localhost:3003/api/blog/categories</a> - Categories</li>
+                <li><a href="http://localhost:3003/api/blog/posts" target="_blank">http://localhost:3003/api/blog/posts</a> - Posts</li>
+            </ul>
+        </div>
+        
+        <div class="section">
+            <h2>1. Authentication</h2>
+            <div>
+                <h3>Login</h3>
+                <input type="text" id="loginUsername" placeholder="Username" value="drjohn">
+                <input type="password" id="loginPassword" placeholder="Password" value="password123">
+                <button onclick="login()">Login</button>
+                <button onclick="loginViaForm()">Login (Form Method)</button>
+                <div id="loginResult" class="result"></div>
+            </div>
+        </div>
+
+        <!-- Login form for alternative method -->
+        <form id="loginForm" style="display:none;" target="loginFrame" method="post" action="http://localhost:3003/api/auth/login">
+            <input type="hidden" name="login" id="formLogin">
+            <input type="hidden" name="password" id="formPassword">
+        </form>
+        <iframe name="loginFrame" style="display:none;"></iframe>
+
+        <div class="section">
+            <h2>2. Manual Testing Instructions</h2>
+            <div class="result">
+                <h4>Since browser fetch is failing, here are manual test methods:</h4>
+                <ol>
+                    <li><strong>Open a new tab</strong> and go to: <code>http://localhost:3003/</code></li>
+                    <li><strong>Test categories:</strong> <code>http://localhost:3003/api/blog/categories</code></li>
+                    <li><strong>Test posts:</strong> <code>http://localhost:3003/api/blog/posts</code></li>
+                </ol>
+                
+                <h4>To test POST requests (login/register/create post):</h4>
+                <ol>
+                    <li>Open browser <strong>Developer Tools</strong> (F12)</li>
+                    <li>Go to <strong>Console</strong> tab</li>
+                    <li>Paste this login command:</li>
+                </ol>
+                <textarea readonly style="width: 100%; height: 80px;">
+fetch('http://localhost:3003/api/auth/login', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ login: 'drjohn', password: 'password123' })
+}).then(r => r.json()).then(console.log)
+                </textarea>
+                
+                <p><strong>After login, save the token and create a post:</strong></p>
+                <textarea readonly style="width: 100%; height: 100px;">
+// Replace YOUR_TOKEN with the token from login
+fetch('http://localhost:3003/api/blog/posts', {
+  method: 'POST',
+  headers: { 
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer YOUR_TOKEN'
+  },
+  body: JSON.stringify({
+    title: 'Test Post',
+    summary: 'This is a test post to demonstrate the blog functionality',
+    content: 'Full content of the test post goes here...',
+    category_id: 1,
+    is_draft: false
+  })
+}).then(r => r.json()).then(console.log)
+                </textarea>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let authToken = '';
+
+        async function testConnection() {
+            const resultDiv = document.getElementById('connectionResult');
+            try {
+                // Try different approaches
+                const response = await fetch('http://localhost:3003/', { 
+                    mode: 'cors',
+                    method: 'GET'
+                });
+                const data = await response.json();
+                resultDiv.innerHTML = '<strong style="color: green;">Server Connected!</strong><br>' + JSON.stringify(data, null, 2);
+            } catch (error) {
+                resultDiv.innerHTML = '<strong style="color: red;">Connection Failed:</strong> ' + error.message + 
+                    '<br><br><strong>Possible solutions:</strong>' +
+                    '<ul>' +
+                    '<li>Make sure your Node.js server is running (check console)</li>' +
+                    '<li>Try opening <a href="http://localhost:3003" target="_blank">http://localhost:3003</a> directly</li>' +
+                    '<li>Check if Windows Firewall is blocking connections</li>' +
+                    '<li>Try Chrome with --disable-web-security flag</li>' +
+                    '</ul>';
+            }
+        }
+
+        async function login() {
+            const username = document.getElementById('loginUsername').value;
+            const password = document.getElementById('loginPassword').value;
+            
+            try {
+                const response = await fetch('http://localhost:3003/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ login: username, password: password }),
+                    mode: 'cors'
+                });
+                
+                const result = await response.json();
+                const resultDiv = document.getElementById('loginResult');
+                
+                if (response.ok && result.success) {
+                    authToken = result.data.token;
+                    resultDiv.innerHTML = '<strong style="color: green;">Login successful!</strong><br>Role: ' + result.data.user.role;
+                    resultDiv.className = 'result';
+                } else {
+                    resultDiv.innerHTML = '<strong style="color: red;">Login failed:</strong> ' + result.message;
+                    resultDiv.className = 'result error';
+                }
+            } catch (error) {
+                document.getElementById('loginResult').innerHTML = 
+                    '<strong style="color: red;">Connection Error:</strong> ' + error.message + 
+                    '<br><br>Try the manual method using browser console (see instructions above)';
+            }
+        }
+
+        function loginViaForm() {
+            // Alternative form-based approach
+            document.getElementById('formLogin').value = document.getElementById('loginUsername').value;
+            document.getElementById('formPassword').value = document.getElementById('loginPassword').value;
+            document.getElementById('loginForm').submit();
+            document.getElementById('loginResult').innerHTML = 'Form submitted - check network tab in developer tools';
+        }
+    </script>
+</body>
+</html>

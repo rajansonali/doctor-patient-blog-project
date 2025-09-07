@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Doctor-Patient Blog System</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }
+        .header { text-align: center; color: #2c3e50; margin-bottom: 30px; }
+        .login-section, .blog-section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }
+        .button { padding: 10px 20px; margin: 10px 5px; background: #3498db; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        .button:hover { background: #2980b9; }
+        .input { padding: 8px; margin: 5px; border: 1px solid #ddd; border-radius: 4px; }
+        .posts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin: 20px 0; }
+        .post-card { border: 1px solid #ddd; padding: 15px; border-radius: 5px; background: #fafafa; }
+        .category { color: #e74c3c; font-weight: bold; }
+        .draft { color: #f39c12; }
+        .published { color: #27ae60; }
+        .result { margin: 10px 0; padding: 10px; background: #ecf0f1; border-radius: 4px; }
+        .user-info { background: #2ecc71; color: white; padding: 10px; border-radius: 4px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Doctor-Patient Blog System</h1>
+            <div id="userInfo" style="display:none;" class="user-info"></div>
+        </div>
+
+        <div id="loginSection" class="login-section">
+            <h2>Login</h2>
+            <input type="text" id="username" class="input" placeholder="Username" value="drjohn">
+            <input type="password" id="password" class="input" placeholder="Password" value="password123">
+            <button onclick="login()" class="button">Login as Doctor</button>
+            <button onclick="loginPatient()" class="button">Login as Patient</button>
+            <div id="loginResult" class="result"></div>
+        </div>
+
+        <div id="doctorSection" style="display:none;" class="blog-section">
+            <h2>Create New Blog Post (Doctor)</h2>
+            <input type="text" id="postTitle" class="input" placeholder="Post Title" style="width: 400px;">
+            <br>
+            <textarea id="postSummary" class="input" placeholder="Summary (will be truncated to 15 words for display)" style="width: 400px; height: 60px;"></textarea>
+            <br>
+            <textarea id="postContent" class="input" placeholder="Full Content" style="width: 400px; height: 100px;"></textarea>
+            <br>
+            <select id="categorySelect" class="input">
+                <option value="1">Mental Health</option>
+                <option value="2">Heart Disease</option>
+                <option value="3">Covid19</option>
+                <option value="4">Immunization</option>
+            </select>
+            <label><input type="checkbox" id="isDraft"> Save as Draft</label>
+            <br>
+            <button onclick="createPost()" class="button">Create Post</button>
+            <button onclick="loadMyPosts()" class="button">View My Posts</button>
+            <div id="createResult" class="result"></div>
+        </div>
+
+        <div class="blog-section">
+            <h2>Published Blog Posts</h2>
+            <button onclick="loadAllPosts()" class="button">Load All Posts</button>
+            <button onclick="loadByCategory()" class="button">Load Posts by Category</button>
+            <div id="postsContainer" class="posts-grid"></div>
+        </div>
+
+        <div id="myPostsSection" style="display:none;" class="blog-section">
+            <h2>My Posts (Doctor)</h2>
+            <div id="myPostsContainer" class="posts-grid"></div>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = null;
+        let authToken = null;
+
+        function showMessage(elementId, message, isError = false) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = message;
+            element.style.background = isError ? '#e74c3c' : '#2ecc71';
+            element.style.color = 'white';
+            element.style.padding = '10px';
+            element.style.borderRadius = '4px';
+        }
+
+        async function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                const response = await fetch('http://localhost:3003/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ login: username, password: password })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    currentUser = result.data.user;
+                    authToken = result.data.token;
+                    
+                    document.getElementById('userInfo').innerHTML = `Logged in as: ${currentUser.full_name} (${currentUser.role})`;
+                    document.getElementById('userInfo').style.display = 'block';
+                    document.getElementById('loginSection').style.display = 'none';
+                    
+                    if (currentUser.role === 'doctor') {
+                        document.getElementById('doctorSection').style.display = 'block';
+                    }
+                    
+                    showMessage('loginResult', 'Login successful!');
+                    loadAllPosts();
+                } else {
+                    showMessage('loginResult', 'Login failed: ' + result.message, true);
+                }
+            } catch (error) {
+                showMessage('loginResult', 'Connection error: ' + error.message, true);
+            }
+        }
+
+        async function loginPatient() {
+            document.getElementById('username').value = 'patient1';
+            document.getElementById('password').value = 'password123';
+            login();
+        }
+
+        async function createPost() {
+            if (!authToken) {
+                showMessage('createResult', 'Please login first', true);
+                return;
+            }
+
+            const postData = {
+                title: document.getElementById('postTitle').value,
+                summary: document.getElementById('postSummary').value,
+                content: document.getElementById('postContent').value,
+                category_id: parseInt(document.getElementById('categorySelect').value),
+                is_draft: document.getElementById('isDraft').checked
+            };
+
+            try {
+                const response = await fetch('http://localhost:3003/api/blog/posts', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + authToken
+                    },
+                    body: JSON.stringify(postData)
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    showMessage('createResult', 'Post created successfully!');
+                    // Clear form
+                    document.getElementById('postTitle').value = '';
+                    document.getElementById('postSummary').value = '';
+                    document.getElementById('postContent').value = '';
+                    document.getElementById('isDraft').checked = false;
+                    // Reload posts
+                    loadAllPosts();
+                } else {
+                    showMessage('createResult', 'Failed to create post: ' + result.message, true);
+                }
+            } catch (error) {
+                showMessage('createResult', 'Error: ' + error.message, true);
+            }
+        }
+
+        async function loadAllPosts() {
+            try {
+                const response = await fetch('http://localhost:3003/api/blog/posts');
+                const result = await response.json();
+                
+                if (result.success) {
+                    displayPosts(result.data, 'postsContainer');
+                }
+            } catch (error) {
+                console.error('Error loading posts:', error);
+            }
+        }
+
+        async function loadByCategory() {
+            try {
+                const response = await fetch('http://localhost:3003/api/blog/posts/by-category');
+                const result = await response.json();
+                
+                if (result.success) {
+                    displayPostsByCategory(result.data, 'postsContainer');
+                }
+            } catch (error) {
+                console.error('Error loading posts by category:', error);
+            }
+        }
+
+        async function loadMyPosts() {
+            if (!authToken) return;
+            
+            try {
+                const response = await fetch('http://localhost:3003/api/blog/posts/my-posts', {
+                    headers: { 'Authorization': 'Bearer ' + authToken }
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    document.getElementById('myPostsSection').style.display = 'block';
+                    displayPosts(result.data, 'myPostsContainer', true);
+                }
+            } catch (error) {
+                console.error('Error loading my posts:', error);
+            }
+        }
+
+        function displayPosts(posts, containerId, showDrafts = false) {
+            const container = document.getElementById(containerId);
+            
+            if (posts.length === 0) {
+                container.innerHTML = '<p>No posts found.</p>';
+                return;
+            }
+
+            const postsHtml = posts.map(post => `
+                <div class="post-card">
+                    <h3>${post.title}</h3>
+                    <p class="category">Category: ${post.category?.name || 'Unknown'}</p>
+                    ${showDrafts ? `<p class="${post.is_draft ? 'draft' : 'published'}">${post.is_draft ? '[DRAFT]' : '[PUBLISHED]'}</p>` : ''}
+                    <p><strong>Author:</strong> ${post.author?.full_name || currentUser?.full_name || 'Unknown'}</p>
+                    <p><strong>Summary:</strong> ${post.summary}</p>
+                    <p><small>Created: ${new Date(post.created_at).toLocaleDateString()}</small></p>
+                </div>
+            `).join('');
+
+            container.innerHTML = postsHtml;
+        }
+
+        function displayPostsByCategory(categories, containerId) {
+            const container = document.getElementById(containerId);
+            
+            const categoriesHtml = categories.map(category => `
+                <div>
+                    <h3 style="color: #2c3e50; border-bottom: 2px solid #3498db; padding: 10px 0;">
+                        ${category.name} (${category.posts.length} posts)
+                    </h3>
+                    ${category.posts.length > 0 ? 
+                        category.posts.map(post => `
+                            <div class="post-card" style="margin-left: 20px;">
+                                <h4>${post.title}</h4>
+                                <p><strong>Author:</strong> ${post.author?.full_name}</p>
+                                <p><strong>Summary:</strong> ${post.summary}</p>
+                                <p><small>Created: ${new Date(post.created_at).toLocaleDateString()}</small></p>
+                            </div>
+                        `).join('') : 
+                        '<p style="margin-left: 20px; color: #7f8c8d;">No posts in this category yet.</p>'
+                    }
+                </div>
+            `).join('');
+
+            container.innerHTML = categoriesHtml;
+        }
+
+        // Load posts on page load
+        window.onload = function() {
+            loadAllPosts();
+        };
+    </script>
+</body>
+</html>

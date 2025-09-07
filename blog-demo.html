@@ -1,0 +1,283 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>Doctor-Patient Blog System</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+        button { padding: 10px 15px; margin: 5px; background: #007bff; color: white; border: none; cursor: pointer; }
+        input, textarea, select { padding: 8px; margin: 5px; width: 200px; }
+        textarea { width: 400px; height: 100px; }
+        .result { background: #f8f9fa; padding: 10px; margin: 10px 0; border-left: 4px solid #007bff; }
+        .error { border-left-color: #dc3545; }
+        .posts { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; }
+        .post { border: 1px solid #ddd; padding: 15px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Doctor-Patient Blog System Demo</h1>
+        
+        <div class="section">
+            <h2>1. Authentication</h2>
+            <div>
+                <h3>Login</h3>
+                <input type="text" id="loginUsername" placeholder="Username" value="drjohn">
+                <input type="password" id="loginPassword" placeholder="Password" value="password123">
+                <button onclick="login()">Login</button>
+                <div id="loginResult" class="result"></div>
+            </div>
+            
+            <div>
+                <h3>Register New User</h3>
+                <input type="text" id="regFullName" placeholder="Full Name" value="Dr. Jane Smith">
+                <input type="text" id="regUsername" placeholder="Username" value="drjane">
+                <input type="email" id="regEmail" placeholder="Email" value="drjane@test.com">
+                <input type="password" id="regPassword" placeholder="Password" value="password123">
+                <select id="regRole">
+                    <option value="doctor">Doctor</option>
+                    <option value="patient">Patient</option>
+                </select>
+                <button onclick="register()">Register</button>
+                <div id="registerResult" class="result"></div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>2. Categories</h2>
+            <button onclick="getCategories()">Get Categories</button>
+            <div id="categoriesResult" class="result"></div>
+        </div>
+
+        <div class="section">
+            <h2>3. Create Blog Post (Doctor Only)</h2>
+            <div>
+                <input type="text" id="postTitle" placeholder="Title" value="Understanding Mental Health">
+                <br>
+                <textarea id="postSummary" placeholder="Summary">Mental health is crucial for overall well-being and affects how we think, feel, and act in our daily lives. Understanding mental health helps us maintain better relationships and cope with stress effectively.</textarea>
+                <br>
+                <textarea id="postContent" placeholder="Content">Mental health encompasses our emotional, psychological, and social well-being. It affects how we think, feel, and act. It also helps determine how we handle stress, relate to others, and make healthy choices. Mental health is important at every stage of life, from childhood and adolescence through adulthood. Many factors contribute to mental health, including biological factors such as genes or brain chemistry, life experiences such as trauma or abuse, and family history of mental health problems.</textarea>
+                <br>
+                <select id="postCategory">
+                    <option value="1">Mental Health</option>
+                    <option value="2">Heart Disease</option>
+                    <option value="3">Covid19</option>
+                    <option value="4">Immunization</option>
+                </select>
+                <br>
+                <label><input type="checkbox" id="isDraft"> Save as Draft</label>
+                <br>
+                <button onclick="createPost()">Create Post</button>
+                <div id="createPostResult" class="result"></div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>4. View Published Posts (All Users)</h2>
+            <button onclick="getPosts()">Get All Posts</button>
+            <button onclick="getPostsByCategory()">Get Posts by Category</button>
+            <div id="postsResult" class="result"></div>
+        </div>
+
+        <div class="section">
+            <h2>5. My Posts (Doctor Only)</h2>
+            <button onclick="getMyPosts()">Get My Posts</button>
+            <div id="myPostsResult" class="result"></div>
+        </div>
+    </div>
+
+    <script>
+        let authToken = '';
+
+        async function apiCall(endpoint, method = 'GET', data = null) {
+            const options = {
+                method,
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            };
+
+            if (authToken) {
+                options.headers['Authorization'] = 'Bearer ' + authToken;
+            }
+
+            if (data) {
+                options.body = JSON.stringify(data);
+            }
+
+            try {
+                const response = await fetch('http://localhost:3003' + endpoint, options);
+                const result = await response.json();
+                return { success: response.ok, data: result };
+            } catch (error) {
+                return { success: false, error: error.message };
+            }
+        }
+
+        async function login() {
+            const username = document.getElementById('loginUsername').value;
+            const password = document.getElementById('loginPassword').value;
+            
+            const result = await apiCall('/api/auth/login', 'POST', {
+                login: username,
+                password: password
+            });
+
+            const resultDiv = document.getElementById('loginResult');
+            if (result.success && result.data.success) {
+                authToken = result.data.data.token;
+                resultDiv.innerHTML = '<strong>Login successful!</strong><br>Role: ' + result.data.data.user.role + '<br>Token: ' + authToken.substring(0, 20) + '...';
+                resultDiv.className = 'result';
+            } else {
+                resultDiv.innerHTML = '<strong>Login failed:</strong> ' + (result.data?.message || result.error);
+                resultDiv.className = 'result error';
+            }
+        }
+
+        async function register() {
+            const userData = {
+                full_name: document.getElementById('regFullName').value,
+                username: document.getElementById('regUsername').value,
+                email: document.getElementById('regEmail').value,
+                password: document.getElementById('regPassword').value,
+                role: document.getElementById('regRole').value
+            };
+
+            const result = await apiCall('/api/auth/register', 'POST', userData);
+            
+            const resultDiv = document.getElementById('registerResult');
+            if (result.success && result.data.success) {
+                resultDiv.innerHTML = '<strong>Registration successful!</strong><br>User: ' + result.data.data.user.full_name;
+                resultDiv.className = 'result';
+            } else {
+                resultDiv.innerHTML = '<strong>Registration failed:</strong> ' + (result.data?.message || result.error);
+                resultDiv.className = 'result error';
+            }
+        }
+
+        async function getCategories() {
+            const result = await apiCall('/api/blog/categories');
+            
+            const resultDiv = document.getElementById('categoriesResult');
+            if (result.success && result.data.success) {
+                const categories = result.data.data.map(cat => 
+                    '<div><strong>' + cat.name + '</strong>: ' + cat.description + '</div>'
+                ).join('');
+                resultDiv.innerHTML = '<h4>Categories:</h4>' + categories;
+                resultDiv.className = 'result';
+            } else {
+                resultDiv.innerHTML = '<strong>Failed to get categories:</strong> ' + (result.data?.message || result.error);
+                resultDiv.className = 'result error';
+            }
+        }
+
+        async function createPost() {
+            if (!authToken) {
+                document.getElementById('createPostResult').innerHTML = '<strong>Please login first</strong>';
+                return;
+            }
+
+            const postData = {
+                title: document.getElementById('postTitle').value,
+                summary: document.getElementById('postSummary').value,
+                content: document.getElementById('postContent').value,
+                category_id: document.getElementById('postCategory').value,
+                is_draft: document.getElementById('isDraft').checked
+            };
+
+            const result = await apiCall('/api/blog/posts', 'POST', postData);
+            
+            const resultDiv = document.getElementById('createPostResult');
+            if (result.success && result.data.success) {
+                resultDiv.innerHTML = '<strong>Post created successfully!</strong><br>Title: ' + result.data.data.title + '<br>Draft: ' + result.data.data.is_draft;
+                resultDiv.className = 'result';
+            } else {
+                resultDiv.innerHTML = '<strong>Failed to create post:</strong> ' + (result.data?.message || result.error);
+                resultDiv.className = 'result error';
+            }
+        }
+
+        async function getPosts() {
+            const result = await apiCall('/api/blog/posts');
+            
+            const resultDiv = document.getElementById('postsResult');
+            if (result.success && result.data.success) {
+                if (result.data.data.length === 0) {
+                    resultDiv.innerHTML = '<strong>No published posts yet</strong>';
+                } else {
+                    const posts = result.data.data.map(post => 
+                        '<div class="post">' +
+                        '<h4>' + post.title + '</h4>' +
+                        '<p><strong>Category:</strong> ' + post.category?.name + '</p>' +
+                        '<p><strong>Author:</strong> ' + post.author?.full_name + '</p>' +
+                        '<p><strong>Summary:</strong> ' + post.summary + '</p>' +
+                        '<p><small>Created: ' + new Date(post.created_at).toLocaleString() + '</small></p>' +
+                        '</div>'
+                    ).join('');
+                    resultDiv.innerHTML = '<h4>Published Posts:</h4><div class="posts">' + posts + '</div>';
+                }
+                resultDiv.className = 'result';
+            } else {
+                resultDiv.innerHTML = '<strong>Failed to get posts:</strong> ' + (result.data?.message || result.error);
+                resultDiv.className = 'result error';
+            }
+        }
+
+        async function getPostsByCategory() {
+            const result = await apiCall('/api/blog/posts/by-category');
+            
+            const resultDiv = document.getElementById('postsResult');
+            if (result.success && result.data.success) {
+                const categories = result.data.data.map(category => 
+                    '<div><h4>' + category.name + ' (' + category.posts.length + ' posts)</h4>' +
+                    (category.posts.length > 0 ? 
+                        category.posts.map(post => 
+                            '<div style="margin-left: 20px; padding: 10px; border-left: 2px solid #ccc;">' +
+                            '<strong>' + post.title + '</strong><br>' +
+                            'Author: ' + post.author?.full_name + '<br>' +
+                            'Summary: ' + post.summary +
+                            '</div>'
+                        ).join('') : '<p style="margin-left: 20px;">No posts in this category</p>'
+                    ) + '</div>'
+                ).join('');
+                resultDiv.innerHTML = '<h4>Posts by Category:</h4>' + categories;
+                resultDiv.className = 'result';
+            } else {
+                resultDiv.innerHTML = '<strong>Failed to get posts by category:</strong> ' + (result.data?.message || result.error);
+                resultDiv.className = 'result error';
+            }
+        }
+
+        async function getMyPosts() {
+            if (!authToken) {
+                document.getElementById('myPostsResult').innerHTML = '<strong>Please login as a doctor first</strong>';
+                return;
+            }
+
+            const result = await apiCall('/api/blog/posts/my-posts');
+            
+            const resultDiv = document.getElementById('myPostsResult');
+            if (result.success && result.data.success) {
+                if (result.data.data.length === 0) {
+                    resultDiv.innerHTML = '<strong>You have not created any posts yet</strong>';
+                } else {
+                    const posts = result.data.data.map(post => 
+                        '<div class="post">' +
+                        '<h4>' + post.title + (post.is_draft ? ' <span style="color: orange;">[DRAFT]</span>' : ' <span style="color: green;">[PUBLISHED]</span>') + '</h4>' +
+                        '<p><strong>Category:</strong> ' + post.category?.name + '</p>' +
+                        '<p><strong>Summary:</strong> ' + post.summary + '</p>' +
+                        '<p><small>Created: ' + new Date(post.created_at).toLocaleString() + '</small></p>' +
+                        '</div>'
+                    ).join('');
+                    resultDiv.innerHTML = '<h4>My Posts:</h4><div class="posts">' + posts + '</div>';
+                }
+                resultDiv.className = 'result';
+            } else {
+                resultDiv.innerHTML = '<strong>Failed to get my posts:</strong> ' + (result.data?.message || result.error);
+                resultDiv.className = 'result error';
+            }
+        }
+    </script>
+</body>
+</html>
