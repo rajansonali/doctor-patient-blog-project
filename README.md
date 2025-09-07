@@ -68,7 +68,7 @@ DB_NAME=doctor_patient_blog
   npx sequelize db:migrate
 5.Start the Application
   npm start
-6.Open http://localhost:3001in your browser.
+6.Open http://localhost:'....'in your browser.
 
 📷 Screens (Expected)
 Doctor Dashboard: Form to create blog post, list of doctor’s posts.
